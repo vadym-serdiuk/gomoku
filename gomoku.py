@@ -106,9 +106,11 @@ class Board(object):
         self.next_step = BLACK
         for player in self.players:
             if player.color == self.next_step:
-                msg = {'event': 'start_game', 'info': 'move'}
+                msg = {'event': 'start_game', 'info': 'move',
+                       'color': player.color}
             else:
-                msg = {'event': 'start_game', 'info': 'wait'}
+                msg = {'event': 'start_game', 'info': 'wait',
+                       'color': player.color}
             player.send_message(msg)
 
     def _end_game(self, reason, player=None):
@@ -118,26 +120,29 @@ class Board(object):
             player.send_message(msg)
 
             another_player = self._get_another_player(player)
-            another_player.save_result('loss')
-            msg = {'event': 'end_game', 'info': 'loss'}
-            self._send_message(another_player, msg)
+            if another_player:
+                another_player.save_result('loss')
+                msg = {'event': 'end_game', 'info': 'loss'}
+                self._send_message(another_player, msg)
 
         elif reason == REASON_PLAYER_LEFT_THE_BOARD:
             player.save_result('loss')
 
             another_player = self._get_another_player(player)
-            another_player.save_result('win')
-            msg = {'event': 'end_game', 'info': 'win'}
-            self._send_message(another_player, msg)
+            if another_player:
+                another_player.save_result('win')
+                msg = {'event': 'end_game', 'info': 'win'}
+                self._send_message(another_player, msg)
         elif reason == REASON_DRAW:
             player.save_result('draw')
             msg = {'event': 'end_game', 'info': 'draw'}
             self._send_message(player, msg)
 
             another_player = self._get_another_player(player)
-            another_player.save_result('draw')
-            msg = {'event': 'end_game', 'info': 'draw'}
-            self._send_message(another_player, msg)
+            if another_player:
+                another_player.save_result('draw')
+                msg = {'event': 'end_game', 'info': 'draw'}
+                self._send_message(another_player, msg)
 
     def _is_five_collected(self, player_moves, cell):
         direction_pairs = ((1, -1), (1, 0), (1,1), (0,1))
@@ -196,10 +201,9 @@ class Board(object):
 
 class Game(web.Application):
 
-    def __init__(self, test=False):
+    def __init__(self, test=False, production=False):
 
         mongo_url = os.environ.get('MONGOHQ_URL', 'localhost')
-        print mongo_url
         client = MongoClient(mongo_url)
         if test:
             self.db = client['test_gomoku']
@@ -209,14 +213,8 @@ class Game(web.Application):
             except:
                 self.db = client['gomoku']
 
-        # try:
-        #     self.db = client.get_default_database()
-        # except:
-        #     self.db = client.db
-
-        self.sockets = []
-        self.boards = []
         self.free_boards = []
+        self.production = production
 
         handlers = [
             (r'^/$', MainHandler),
@@ -228,7 +226,6 @@ class Game(web.Application):
 
         settings = {
             'autoreload': True,
-            'cookie_secret': "asdfasdfasgdfg2rqwtqe4f34fw34r43",
             'Debug': True
         }
 
@@ -236,7 +233,9 @@ class Game(web.Application):
 
 class MainHandler(web.RequestHandler):
     def get(self, *args, **kwargs):
-        return self.render('templates/main.html', **{})
+        protocol = 'wss' if self.application.production else 'ws'
+        return self.render('templates/main.html',
+                           **{'protocol': protocol})
 
 
 class StatisticHandler(web.RequestHandler):
@@ -410,16 +409,9 @@ class WebSocketHandler(websocket.WebSocketHandler):
         :param message:
         :return:
         """
-        self.ws_connection.write_message(
-                            json.dumps(message))
-
-    def open(self):
-        """
-        Trying to open connection
-        Check user authorization
-        :return:
-        """
-        self.application.sockets.append(self)
+        if self.ws_connection:
+            self.ws_connection.write_message(
+                                json.dumps(message))
 
     def on_message(self, message):
         """
@@ -441,10 +433,15 @@ class WebSocketHandler(websocket.WebSocketHandler):
         if self.board:
             self.board.leave(self)
 
+        if self.board in self.application.free_boards:
+            ind = self.application.free_boards.index(self.board)
+            del self.application.free_boards[ind]
+
 if __name__ == '__main__':
 
     io_loop = tornado.ioloop.IOLoop.instance()
-    application = Game()
+    production = bool(os.environ.get('PROD', False))
+    application = Game(production=production)
     port = os.environ.get('PORT', 5000)
     application.listen(port)
     print("Started at port %s" % port)

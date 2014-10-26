@@ -5,8 +5,7 @@
 var ws_connection = null;
 
 function connect() {
-    url = 'ws://' + location.hostname+(location.port ? ':'+location.port: '') + '/game';
-    console.log(url);
+    url = protocol + '://' + location.hostname+(location.port ? ':'+location.port: '') + '/game';
     ws_connection = new WebSocket(url);
     ws_connection.onclose = onclose;
     ws_connection.onmessage = onmessage;
@@ -15,7 +14,6 @@ function connect() {
 
 function onmessage(event) {
     data = JSON.parse(event.data);
-    console.log(data);
     if ('event' in data){
         if (data.event == 'error'){
             show_error(data.info);
@@ -25,7 +23,7 @@ function onmessage(event) {
             return;
         }
         if (data.event == 'start_game'){
-            MainComponent.setState({status: data.info, game: true});
+            MainComponent.setState({status: data.info, game: true, color: data.color});
             return;
         }
         if (data.event == 'end_game'){
@@ -51,7 +49,6 @@ function onclose(event){
 
 function onopen(){
     setTimeout(ping, 50000);
-    console.log('ws connected');
     if (AlertComponent.isMounted())
         AlertComponent.setState({error: false});
     if (MainComponent.isMounted())

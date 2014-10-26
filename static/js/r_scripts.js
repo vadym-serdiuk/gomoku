@@ -10,18 +10,19 @@ var username = '';
 
 Cell = React.createClass({
     getInitialState: function(){
-        return {color: 0,
-                game: this.props.game,
-                status: ''}
+        if (this.state)
+            return this.state;
+        else
+            return {color: 0,
+                    game: this.props.game,
+                    status: ''}
     },
     onClick: function(e){
-        console.log(this.state);
         if (this.state.game && this.state.status=='move' && this.state.color == 0) {
             msg = {
                 command: 'move',
                 cell: this.props.index
             };
-            console.log(msg);
             ws_connection.send(JSON.stringify(msg));
         }
     },
@@ -180,7 +181,6 @@ StatisticView = React.createClass({
         return {table: []}
     },
     componentDidMount: function() {
-        console.log('did mount');
         self = this;
         $.ajax({
             url: '/stats?username='+encodeURIComponent(username),
@@ -194,7 +194,6 @@ StatisticView = React.createClass({
         })
     },
     render: function() {
-        console.log('render statistic');
         table = this.state.table.map(function(row){
             return (<tr>
                 <td>{row.position}</td>
