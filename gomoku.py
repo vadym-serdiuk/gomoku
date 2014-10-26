@@ -199,11 +199,15 @@ class Game(web.Application):
     def __init__(self, test=False):
 
         mongo_url = os.environ.get('MONGOHQ_URL', 'localhost')
+        print mongo_url
         client = MongoClient(mongo_url)
         if test:
             self.db = client['test_gomoku']
         else:
-            self.db = client['gomoku']
+            try:
+                self.db = client.get_default_database()
+            except:
+                self.db = client['gomoku']
 
         # try:
         #     self.db = client.get_default_database()
